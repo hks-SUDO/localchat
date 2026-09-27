@@ -26,6 +26,12 @@ const haversineDistance = (lat1, lon1, lat2, lon2) => {
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 };
 
+
+// Health check
+app.get('/api/health', (req, res) => {
+  res.json({ status: 'ok', users: users.count(), time: new Date() });
+});
+
 const findSocketForUser = (userId) => {
   for (const [sid, uid] of sessions.entries()) if (uid === userId) return sid;
   return null;
