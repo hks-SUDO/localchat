@@ -1,0 +1,975 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>LocalChat · discover nearby</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: #0b0f17;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      color: #eef2ff;
+      display: flex;
+      flex-direction: column;
+      min-height: 100vh;
+      padding: 0 0 80px 0;
+    }
+
+    /* Top bar */
+    .top-bar {
+      background: rgba(15, 20, 30, 0.9);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid #2a3441;
+      padding: 14px 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+    .logo {
+      font-weight: 700;
+      font-size: 1.6rem;
+      letter-spacing: -0.5px;
+      background: linear-gradient(135deg, #a0d0ff, #5b8cff);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .location-toggle {
+      display: flex; align-items: center; gap: 8px;
+      background: #1d2632; padding: 6px 16px 6px 12px;
+      border-radius: 40px; border: 1px solid #2f3c4c;
+    }
+    .location-toggle span { font-size: 0.9rem; font-weight: 500; color: #b2c3da; }
+
+    .switch { position: relative; display: inline-block; width: 52px; height: 28px; }
+    .switch input { opacity: 0; width: 0; height: 0; }
+    .slider {
+      position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0;
+      background-color: #2e3a4b; transition: .2s; border-radius: 34px;
+    }
+    .slider:before {
+      position: absolute; content: ""; height: 22px; width: 22px;
+      left: 3px; bottom: 3px; background-color: #96a9c2;
+      transition: .2s; border-radius: 50%;
+    }
+    input:checked + .slider { background: #2d6aff; }
+    input:checked + .slider:before { transform: translateX(24px); background: white; }
+
+    /* Main */
+    main { flex: 1; padding: 18px 16px; max-width: 680px; margin: 0 auto; width: 100%; }
+
+    .status-card {
+      background: #131b26; border-radius: 24px; padding: 14px 18px;
+      border: 1px solid #253040; display: flex; align-items: center;
+      gap: 12px; margin-bottom: 24px;
+    }
+    .pulse-dot {
+      width: 12px; height: 12px; background: #5f7cff; border-radius: 50%;
+      box-shadow: 0 0 0 0 rgba(95, 124, 255, 0.7);
+      animation: pulse 2s infinite;
+    }
+    @keyframes pulse {
+      0% { box-shadow: 0 0 0 0 rgba(95, 124, 255, 0.7); }
+      70% { box-shadow: 0 0 0 10px rgba(95, 124, 255, 0); }
+      100% { box-shadow: 0 0 0 0 rgba(95, 124, 255, 0); }
+    }
+    .status-text { font-size: 0.95rem; color: #b0c1da; }
+    .status-text strong { color: white; }
+
+    .section-title {
+      display: flex; justify-content: space-between; align-items: baseline;
+      margin: 28px 0 14px 0;
+    }
+    .section-title h2 {
+      font-size: 1.2rem; font-weight: 600;
+      letter-spacing: -0.2px; color: #d6e2f5;
+    }
+    .badge {
+      background: #1f2b3b; padding: 4px 12px; border-radius: 30px;
+      font-size: 0.75rem; font-weight: 500; color: #93a9c9;
+      border: 1px solid #2a384b;
+    }
+
+    /* People */
+    .people-grid { display: flex; flex-direction: column; gap: 14px; }
+    .person-card {
+      background: #111a24; border: 1px solid #25303f; border-radius: 20px;
+      padding: 16px; display: flex; flex-wrap: wrap; align-items: center;
+      gap: 14px; transition: border-color 0.15s;
+    }
+    .person-card:hover { border-color: #3e5577; }
+
+    .avatar {
+      width: 58px; height: 58px; border-radius: 50%;
+      background: linear-gradient(145deg, #2c3f5a, #1b2a3c);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.7rem; font-weight: 500; color: #d0e0ff;
+      flex-shrink: 0; border: 2px solid #2e405b;
+    }
+    .person-info { flex: 1; min-width: 140px; }
+    .person-name {
+      font-weight: 600; font-size: 1.1rem; margin-bottom: 4px;
+      display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+    }
+    .distance {
+      font-size: 0.75rem; font-weight: 400; color: #7f96b3;
+      background: #1b2533; padding: 2px 10px; border-radius: 30px;
+    }
+    .social-tags { display: flex; gap: 8px; margin-top: 6px; flex-wrap: wrap; }
+    .social-tag {
+      background: #1d2a3a; font-size: 0.7rem; padding: 3px 10px;
+      border-radius: 30px; color: #b2c9e8; text-transform: uppercase;
+      letter-spacing: 0.3px; font-weight: 500; border: 1px solid #2e3d52;
+    }
+    .social-tag.snap { background: #2a2a1f; color: #f7e05e; border-color: #5a5320; }
+    .social-tag.insta { background: #2a1f2a; color: #e07ab0; border-color: #5a2f4a; }
+    .social-tag.fb { background: #1f2a3a; color: #7aa9f0; border-color: #2f4a6a; }
+    .social-tag.tiktok { background: #1f2a2a; color: #5ce0d0; border-color: #2a5a5a; }
+
+    .card-actions { display: flex; gap: 10px; margin-left: auto; }
+    .btn {
+      border: none; font-weight: 600; font-size: 0.85rem;
+      padding: 10px 18px; border-radius: 40px; cursor: pointer;
+      transition: 0.15s; display: flex; align-items: center;
+      gap: 6px; font-family: inherit; white-space: nowrap;
+    }
+    .btn-primary {
+      background: #3b6aff; color: white;
+      box-shadow: 0 6px 14px rgba(59, 106, 255, 0.25);
+    }
+    .btn-primary:hover { background: #2a55e0; transform: scale(1.02); }
+    .btn-outline {
+      background: transparent; border: 1px solid #354b66; color: #cddefa;
+    }
+    .btn-outline:hover { background: #1b2a3b; border-color: #4d6b8f; }
+    .btn:disabled, .btn.disabled {
+      opacity: 0.5; pointer-events: none; filter: grayscale(0.5);
+    }
+
+    /* Empty state */
+    .empty-state {
+      text-align: center; padding: 60px 20px;
+      background: #0f1722; border-radius: 32px;
+      border: 1px dashed #283649; color: #8da1bd;
+    }
+    .empty-state .big-icon { font-size: 3rem; margin-bottom: 12px; opacity: 0.5; }
+
+    /* Toast */
+    .toast {
+      position: fixed; bottom: 28px; left: 50%;
+      transform: translateX(-50%) translateY(20px);
+      background: #1e2c3f; border: 1px solid #3f5672;
+      color: white; padding: 12px 24px; border-radius: 60px;
+      font-size: 0.9rem; font-weight: 500;
+      box-shadow: 0 12px 28px rgba(0,0,0,0.6);
+      opacity: 0; transition: opacity 0.2s, transform 0.2s;
+      pointer-events: none; z-index: 100;
+      backdrop-filter: blur(8px); white-space: nowrap;
+      max-width: 90vw; overflow: hidden; text-overflow: ellipsis;
+    }
+    .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+    /* Invite modal */
+    .modal-backdrop {
+      position: fixed; inset: 0; background: rgba(5, 10, 20, 0.75);
+      backdrop-filter: blur(6px); z-index: 200;
+      display: flex; align-items: center; justify-content: center;
+      padding: 20px;
+    }
+    .modal {
+      background: #131c28; border: 1px solid #2d3d52;
+      border-radius: 24px; padding: 24px; max-width: 380px;
+      width: 100%; box-shadow: 0 20px 50px rgba(0,0,0,0.6);
+    }
+    .modal h3 { font-size: 1.15rem; margin-bottom: 8px; }
+    .modal p { color: #96a9c3; font-size: 0.9rem; margin-bottom: 20px; }
+    .modal-actions { display: flex; gap: 10px; }
+    .modal-actions .btn { flex: 1; justify-content: center; }
+
+    .hidden { display: none !important; }
+    .footer-note {
+      text-align: center; color: #3a4a60;
+      font-size: 0.7rem; margin-top: 40px;
+    }
+    /* Profile modal */
+.profile-modal { max-width: 440px; max-height: 90vh; overflow-y: auto; }
+.field-label {
+  display: block; font-size: 0.78rem; font-weight: 600;
+  color: #8ba1bd; text-transform: uppercase; letter-spacing: 0.5px;
+  margin: 16px 0 8px 0;
+}
+.field-hint { font-size: 0.78rem; color: #6b7f9b; margin-bottom: 10px; }
+.text-input {
+  width: 100%; background: #0d151e; border: 1px solid #2c3d52;
+  color: white; padding: 12px 14px; border-radius: 12px;
+  font-size: 0.95rem; font-family: inherit; outline: none;
+}
+.text-input:focus { border-color: #3b6aff; }
+
+.avatar-picker {
+  display: grid; grid-template-columns: repeat(8, 1fr); gap: 8px;
+}
+.avatar-choice {
+  aspect-ratio: 1; border-radius: 12px; border: 1px solid #2c3d52;
+  background: #0d151e; font-size: 1.5rem; cursor: pointer;
+  transition: 0.15s; padding: 0;
+}
+.avatar-choice:hover { background: #182335; border-color: #3b6aff; }
+.avatar-choice.selected {
+  border-color: #3b6aff; background: #17253f;
+  box-shadow: 0 0 0 2px rgba(59, 106, 255, 0.35);
+}
+
+.platform-grid {
+  display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px;
+}
+.platform-toggle { cursor: pointer; }
+.platform-toggle input { display: none; }
+.platform-pill {
+  display: block; text-align: center; padding: 10px 8px;
+  border-radius: 12px; border: 1px solid #2c3d52; background: #0d151e;
+  font-size: 0.82rem; font-weight: 500; color: #b2c9e8;
+  transition: 0.15s;
+}
+.platform-toggle input:checked + .platform-pill.snap    { background:#2a2a1f; color:#f7e05e; border-color:#5a5320; }
+.platform-toggle input:checked + .platform-pill.insta   { background:#2a1f2a; color:#e07ab0; border-color:#5a2f4a; }
+.platform-toggle input:checked + .platform-pill.fb      { background:#1f2a3a; color:#7aa9f0; border-color:#2f4a6a; }
+.platform-toggle input:checked + .platform-pill.tiktok  { background:#1f2a2a; color:#5ce0d0; border-color:#2a5a5a; }
+
+/* Profile chip in top bar */
+.profile-chip {
+  display: flex; align-items: center; gap: 8px;
+  background: #1d2632; border: 1px solid #2f3c4c;
+  padding: 6px 14px 6px 8px; border-radius: 40px;
+  cursor: pointer; color: #e6eefb; font-family: inherit;
+  font-size: 0.85rem; font-weight: 500;
+  transition: 0.15s;
+}
+.profile-chip:hover { background: #24313f; border-color: #3b6aff; }
+.profile-chip #profileChipAvatar { font-size: 1.15rem; }
+.profile-chip #profileChipName { max-width: 90px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+    /* Chat panel */
+    .chat-panel {
+      position: fixed; right: 20px; bottom: 20px;
+      width: 340px; max-width: calc(100vw - 40px);
+      height: 440px; max-height: calc(100vh - 40px);
+      background: #101821; border: 1px solid #2c3d52;
+      border-radius: 20px; display: flex; flex-direction: column;
+      z-index: 150; box-shadow: 0 20px 50px rgba(0,0,0,0.7);
+      overflow: hidden;
+    }
+    .chat-header {
+      padding: 14px 16px; border-bottom: 1px solid #253244;
+      display: flex; justify-content: space-between; align-items: center;
+    }
+    .chat-header strong { font-size: 0.95rem; }
+    .chat-close {
+      background: none; border: none; color: #96a9c3;
+      font-size: 1.2rem; cursor: pointer; line-height: 1;
+      padding: 4px 8px; border-radius: 8px;
+    }
+    .chat-close:hover { background: #1d2a3a; color: white; }
+    .chat-messages {
+      flex: 1; overflow-y: auto; padding: 14px;
+      display: flex; flex-direction: column; gap: 8px;
+    }
+    .chat-msg {
+      max-width: 78%; padding: 8px 12px; border-radius: 14px;
+      font-size: 0.88rem; line-height: 1.35; word-wrap: break-word;
+    }
+    .chat-msg.mine {
+      align-self: flex-end; background: #3b6aff; color: white;
+      border-bottom-right-radius: 4px;
+    }
+    .chat-msg.theirs {
+      align-self: flex-start; background: #1d2a3a; color: #e6eefb;
+      border-bottom-left-radius: 4px;
+    }
+    .chat-msg-time {
+      font-size: 0.65rem; opacity: 0.6; margin-top: 4px; display: block;
+    }
+    .chat-input-row {
+      display: flex; gap: 8px; padding: 10px;
+      border-top: 1px solid #253244; background: #0d151e;
+    }
+    .chat-input-row input {
+      flex: 1; background: #1a2533; border: 1px solid #2c3d52;
+      color: white; padding: 10px 14px; border-radius: 30px;
+      font-size: 0.88rem; font-family: inherit; outline: none;
+    }
+    .chat-input-row input:focus { border-color: #3b6aff; }
+    .chat-send {
+      background: #3b6aff; border: none; color: white;
+      width: 42px; height: 42px; border-radius: 50%;
+      cursor: pointer; font-size: 1rem;
+    }
+    .chat-send:hover { background: #2a55e0; }
+  </style>
+</head>
+<body>
+<div class="top-bar">
+  <div class="logo">LocalChat</div>
+  <div style="display:flex; align-items:center; gap:10px;">
+    <button id="profileChip" class="profile-chip" title="Edit profile">
+      <span id="profileChipAvatar">🙂</span>
+      <span id="profileChipName">Set name</span>
+    </button>
+    <div class="location-toggle">
+      <span>📍 Location</span>
+      <label class="switch">
+        <input type="checkbox" id="locationSwitch" />
+        <span class="slider"></span>
+      </label>
+    </div>
+  </div>
+</div>
+
+  <main>
+    <div class="status-card">
+      <div class="pulse-dot" id="pulseDot"></div>
+      <div class="status-text" id="statusText">
+        <strong>Location off</strong> — turn on to see people nearby
+      </div>
+    </div>
+
+    <div id="nearbySection" class="hidden">
+      <div class="section-title">
+        <h2>Near you</h2>
+        <span class="badge" id="peopleCount">0 around</span>
+      </div>
+      <div class="people-grid" id="peopleGrid"></div>
+    </div>
+
+    <div id="offMessage" class="empty-state">
+      <div class="big-icon">📍</div>
+      <p style="font-size: 1rem; margin-bottom: 8px;">Location is turned off</p>
+      <p style="font-size: 0.85rem; color: #6b7f9b;">
+        Enable location to discover people near you<br />and see their social profiles.
+      </p>
+    </div>
+
+    <div class="footer-note">⚡ demo experience · real connections</div>
+  </main>
+  <!-- Profile setup / edit modal -->
+<div id="profileModal" class="modal-backdrop hidden">
+  <div class="modal profile-modal">
+    <h3 id="profileModalTitle">Welcome to LocalChat</h3>
+    <p id="profileModalSub">Set up your profile so people nearby know who you are.</p>
+
+    <label class="field-label">Avatar</label>
+    <div class="avatar-picker" id="avatarPicker">
+      <button type="button" class="avatar-choice" data-avatar="🙂">🙂</button>
+      <button type="button" class="avatar-choice" data-avatar="😎">😎</button>
+      <button type="button" class="avatar-choice" data-avatar="🧑‍🎤">🧑‍🎤</button>
+      <button type="button" class="avatar-choice" data-avatar="👩‍💻">👩‍💻</button>
+      <button type="button" class="avatar-choice" data-avatar="🧔‍♂️">🧔‍♂️</button>
+      <button type="button" class="avatar-choice" data-avatar="👩‍🎨">👩‍🎨</button>
+      <button type="button" class="avatar-choice" data-avatar="🐱">🐱</button>
+      <button type="button" class="avatar-choice" data-avatar="🐶">🐶</button>
+    </div>
+
+    <label class="field-label">Display name</label>
+    <input type="text" id="profileNameInput" class="text-input"
+           placeholder="e.g. Alex R." maxlength="24" autocomplete="off" />
+
+    <label class="field-label">Linked social accounts</label>
+    <p class="field-hint">Pick the platforms you're on. Others can see these tags.</p>
+    <div class="platform-grid" id="platformGrid">
+      <label class="platform-toggle">
+        <input type="checkbox" value="snapchat" />
+        <span class="platform-pill snap">👻 Snapchat</span>
+      </label>
+      <label class="platform-toggle">
+        <input type="checkbox" value="instagram" />
+        <span class="platform-pill insta">📸 Instagram</span>
+      </label>
+      <label class="platform-toggle">
+        <input type="checkbox" value="facebook" />
+        <span class="platform-pill fb">📘 Facebook</span>
+      </label>
+      <label class="platform-toggle">
+        <input type="checkbox" value="tiktok" />
+        <span class="platform-pill tiktok">🎵 TikTok</span>
+      </label>
+    </div>
+
+    <label class="field-label">Your handles (optional, comma-separated)</label>
+    <input type="text" id="profileHandlesInput" class="text-input"
+           placeholder="snap: alexr, tiktok: @alexr" autocomplete="off" />
+
+    <div class="modal-actions" style="margin-top: 20px;">
+      <button class="btn btn-outline" id="profileCancelBtn" style="display:none;">Cancel</button>
+      <button class="btn btn-primary" id="profileSaveBtn">Save profile</button>
+    </div>
+  </div>
+</div>
+
+  <div id="toast" class="toast">Invite sent</div>
+
+  <!-- Incoming invite modal -->
+  <div id="inviteModal" class="modal-backdrop hidden">
+    <div class="modal">
+      <h3 id="inviteTitle">New chat invite</h3>
+      <p id="inviteBody">Someone nearby wants to chat with you.</p>
+      <div class="modal-actions">
+        <button class="btn btn-outline" id="rejectInviteBtn">Decline</button>
+        <button class="btn btn-primary" id="acceptInviteBtn">Accept</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Chat panel -->
+  <div id="chatPanel" class="chat-panel hidden">
+    <div class="chat-header">
+      <strong id="chatTitle">Chat</strong>
+      <button class="chat-close" id="chatCloseBtn">✕</button>
+    </div>
+    <div class="chat-messages" id="chatMessages"></div>
+    <div class="chat-input-row">
+      <input type="text" id="chatInput" placeholder="Type a message…" maxlength="500" />
+      <button class="chat-send" id="chatSendBtn">➤</button>
+    </div>
+  </div>
+
+  <!-- Socket.IO client -->
+  <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+
+  <script>
+  // ============================================================
+  // LocalChat Frontend — full logic integrated
+  // ============================================================
+
+  const API_BASE = 'http://localhost:4000'; // ⚠️ change if your backend runs elsewhere
+  const socket = io(API_BASE, { autoConnect: true });
+
+  // ==================== STATE ====================
+  const state = {
+    me: null,
+    locationOn: false,
+    nearbyUsers: [],
+    invitedSet: new Set(),
+    currentRoom: null,
+    currentChatUserId: null,
+  };
+
+  // ==================== DOM HELPERS ====================
+  const $ = sel => document.querySelector(sel);
+  const locationSwitch  = $('#locationSwitch');
+  const statusText      = $('#statusText');
+  const nearbySection   = $('#nearbySection');
+  const offMessage      = $('#offMessage');
+  const peopleGrid      = $('#peopleGrid');
+  const peopleCount     = $('#peopleCount');
+  const toastEl         = $('#toast');
+  const inviteModal     = $('#inviteModal');
+  const inviteTitle     = $('#inviteTitle');
+  const inviteBody      = $('#inviteBody');
+  const acceptInviteBtn = $('#acceptInviteBtn');
+  const rejectInviteBtn = $('#rejectInviteBtn');
+  const chatPanel       = $('#chatPanel');
+  const chatTitle       = $('#chatTitle');
+  const chatMessages    = $('#chatMessages');
+  const chatInput       = $('#chatInput');
+  const chatSendBtn     = $('#chatSendBtn');
+  const chatCloseBtn    = $('#chatCloseBtn');
+
+  // ==================== TOAST ====================
+  let toastTimer;
+  function showToast(msg) {
+    toastEl.textContent = msg;
+    toastEl.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => toastEl.classList.remove('show'), 2400);
+  }
+
+  // ==================== IDENTITY ====================
+  function getOrCreateUserId() {
+    let id = localStorage.getItem('localchat_userId');
+    if (!id) {
+      id = 'u_' + Math.random().toString(36).slice(2, 10);
+      localStorage.setItem('localchat_userId', id);
+    }
+    return id;
+  }
+
+  function buildMyProfile(userId) {
+    const saved = JSON.parse(localStorage.getItem('localchat_profile') || 'null');
+    if (saved) return saved;
+    const profile = {
+      userId,
+      name: 'You',
+      avatar: '🙂',
+      platforms: ['instagram', 'snapchat', 'tiktok', 'facebook'],
+      socialHandles: {
+        instagram: '@you',
+        snapchat: 'you',
+        tiktok: '@you',
+        facebook: 'you'
+      }
+    };
+    localStorage.setItem('localchat_profile', JSON.stringify(profile));
+    return profile;
+  }
+
+  // ==================== GEOLOCATION ====================
+  function getCurrentPosition() {
+    return new Promise((resolve, reject) => {
+      if (!navigator.geolocation) return reject(new Error('Geolocation unsupported'));
+      navigator.geolocation.getCurrentPosition(
+        pos => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+        err => reject(err),
+        { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 }
+      );
+    });
+  }
+
+  // ==================== BACKEND CALLS ====================
+  async function registerMe() {
+    const { lat, lng } = await getCurrentPosition();
+    state.me = { ...state.me, lat, lng };
+
+    const res = await fetch(`${API_BASE}/api/user`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(state.me)
+    });
+    const data = await res.json();
+    return data.user;
+  }
+
+  async function fetchNearby() {
+    if (!state.me?.lat || !state.me?.lng) return [];
+    const url = new URL(`${API_BASE}/api/nearby`);
+    url.searchParams.set('userId', state.me.userId);
+    url.searchParams.set('lat', state.me.lat);
+    url.searchParams.set('lng', state.me.lng);
+    url.searchParams.set('radiusKm', '5');
+    const res = await fetch(url);
+    const data = await res.json();
+    state.nearbyUsers = data.users || [];
+    return state.nearbyUsers;
+  }
+
+  // ==================== RENDERING ====================
+  function socialTagsHtml(platforms) {
+    const map = {
+      snapchat:  { label: 'Snap',   cls: 'snap' },
+      instagram: { label: 'Insta',  cls: 'insta' },
+      facebook:  { label: 'FB',     cls: 'fb' },
+      tiktok:    { label: 'TikTok', cls: 'tiktok' }
+    };
+    return (platforms || []).map(p => {
+      const info = map[p] || { label: p, cls: '' };
+      return `<span class="social-tag ${info.cls}">${info.label}</span>`;
+    }).join('');
+  }
+
+  function renderPeople() {
+    if (!state.nearbyUsers.length) {
+      peopleGrid.innerHTML =
+        `<div style="color:#6b7f9b;padding:20px;text-align:center;">No one nearby right now</div>`;
+      return;
+    }
+    peopleGrid.innerHTML = state.nearbyUsers.map(u => {
+      const invited = state.invitedSet.has(u.userId);
+      return `
+        <div class="person-card" data-user-id="${u.userId}">
+          <div class="avatar">${u.avatar || '👤'}</div>
+          <div class="person-info">
+            <div class="person-name">
+              ${u.name}
+              <span class="distance">${u.distanceKm} km</span>
+            </div>
+            <div class="social-tags">${socialTagsHtml(u.platforms)}</div>
+          </div>
+          <div class="card-actions">
+            <button class="btn btn-outline view-profile-btn" data-user-id="${u.userId}">👤 Profile</button>
+            <button class="btn btn-primary invite-btn ${invited ? 'disabled' : ''}"
+                    data-user-id="${u.userId}" ${invited ? 'disabled' : ''}>
+              ${invited ? '✓ Invited' : '💬 Invite'}
+            </button>
+          </div>
+        </div>`;
+    }).join('');
+
+    document.querySelectorAll('.invite-btn').forEach(btn =>
+      btn.addEventListener('click', () => sendInvite(btn.dataset.userId, btn))
+    );
+    document.querySelectorAll('.view-profile-btn').forEach(btn =>
+      btn.addEventListener('click', () => viewProfile(btn.dataset.userId))
+    );
+  }
+
+  function updateUI() {
+    if (state.locationOn) {
+      nearbySection.classList.remove('hidden');
+      offMessage.classList.add('hidden');
+      statusText.innerHTML = `<strong>Location active</strong> — ${state.nearbyUsers.length} people nearby`;
+      peopleCount.textContent = `${state.nearbyUsers.length} around`;
+      renderPeople();
+    } else {
+      nearbySection.classList.add('hidden');
+      offMessage.classList.remove('hidden');
+      statusText.innerHTML = `<strong>Location off</strong> — turn on to see people nearby`;
+      peopleGrid.innerHTML = '';
+    }
+  }
+
+  // ==================== ACTIONS ====================
+  async function sendInvite(toUserId, btn) {
+    if (state.invitedSet.has(toUserId)) return showToast('Already invited');
+    try {
+      const res = await fetch(`${API_BASE}/api/invite`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fromUserId: state.me.userId, toUserId })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed');
+
+      state.invitedSet.add(toUserId);
+      btn.classList.add('disabled');
+      btn.disabled = true;
+      btn.textContent = '✓ Invited';
+      const user = state.nearbyUsers.find(u => u.userId === toUserId);
+      showToast(`✉️ Invite sent to ${user?.name?.split(' ')[0] || 'user'}`);
+    } catch (err) {
+      showToast('❌ ' + err.message);
+    }
+  }
+
+  function viewProfile(userId) {
+    const user = state.nearbyUsers.find(u => u.userId === userId);
+    if (!user) return;
+    const lines = Object.entries(user.socialHandles || {})
+      .map(([p, h]) => `${p}: ${h}`).join(' · ');
+    showToast(`🔍 ${user.name} — ${lines || 'no linked handles'}`);
+  }
+
+  // ==================== LOCATION TOGGLE ====================
+  locationSwitch.addEventListener('change', async (e) => {
+    if (e.target.checked) {
+      try {
+        showToast('📍 Getting your location…');
+        if (!state.me || !state.me.name || state.me.name === 'You') {
+  openProfileModal(true);
+  locationSwitch.checked = false;
+  showToast('👤 Set your name first');
+  return;
+}
+        await registerMe();
+        await fetchNearby();
+        state.locationOn = true;
+        updateUI();
+        showToast(`📍 Showing ${state.nearbyUsers.length} people nearby`);
+      } catch (err) {
+        console.error(err);
+        locationSwitch.checked = false;
+        showToast('❌ Location permission denied');
+      }
+    } else {
+      state.locationOn = false;
+      state.nearbyUsers = [];
+      updateUI();
+      showToast('Location turned off');
+    }
+  });
+
+  // ==================== INVITE MODAL ====================
+  let pendingInvite = null;
+
+  function showInviteModal(invite) {
+    pendingInvite = invite;
+    inviteTitle.textContent = `${invite.from.name} wants to chat`;
+    inviteBody.textContent = `They're nearby and sent you a chat invite. Accept to start chatting.`;
+    inviteModal.classList.remove('hidden');
+  }
+
+  function hideInviteModal() {
+    inviteModal.classList.add('hidden');
+    pendingInvite = null;
+  }
+
+  acceptInviteBtn.addEventListener('click', async () => {
+    if (!pendingInvite) return;
+    const inviteId = pendingInvite.inviteId;
+    hideInviteModal();
+    try {
+      const res = await fetch(`${API_BASE}/api/invite/accept`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ inviteId, userId: state.me.userId })
+      });
+      const data = await res.json();
+      if (data.roomId) {
+        state.currentRoom = data.roomId;
+        socket.emit('chat:join', { roomId: data.roomId });
+        openChat(data.roomId, pendingInvite?.from?.name || 'Chat');
+        showToast('✅ Chat started');
+      }
+    } catch (err) {
+      showToast('❌ Could not accept invite');
+    }
+  });
+
+  rejectInviteBtn.addEventListener('click', async () => {
+    if (!pendingInvite) return;
+    const inviteId = pendingInvite.inviteId;
+    hideInviteModal();
+    try {
+      await fetch(`${API_BASE}/api/invite/reject`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ inviteId, userId: state.me.userId })
+      });
+      showToast('Invite declined');
+    } catch (_) {}
+  });
+
+  // ==================== CHAT PANEL ====================
+  function openChat(roomId, withName) {
+    state.currentRoom = roomId;
+    chatTitle.textContent = `💬 ${withName}`;
+    chatPanel.classList.remove('hidden');
+    chatMessages.innerHTML = '';
+    // load history
+    fetch(`${API_BASE}/api/chat/${roomId}/messages`)
+      .then(r => r.json())
+      .then(data => {
+        (data.messages || []).forEach(appendMessage);
+      })
+      .catch(() => {});
+  }
+
+  function appendMessage(msg) {
+    const mine = state.me && msg.fromUserId === state.me.userId;
+    const div = document.createElement('div');
+    div.className = 'chat-msg ' + (mine ? 'mine' : 'theirs');
+    const time = new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    div.innerHTML = `${escapeHtml(msg.text)}<span class="chat-msg-time">${time}</span>`;
+    chatMessages.appendChild(div);
+    chatMessages.scrollTop = chatMessages.scrollHeight;
+  }
+
+  function escapeHtml(str) {
+    return String(str).replace(/[&<>"']/g, s => ({
+      '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+    }[s]));
+  }
+
+  function sendChatMessage() {
+    const text = chatInput.value.trim();
+    if (!text || !state.currentRoom) return;
+    socket.emit('chat:message', {
+      roomId: state.currentRoom,
+      fromUserId: state.me.userId,
+      text
+    });
+    chatInput.value = '';
+  }
+
+  chatSendBtn.addEventListener('click', sendChatMessage);
+  chatInput.addEventListener('keydown', e => {
+    if (e.key === 'Enter') { e.preventDefault(); sendChatMessage(); }
+  });
+  chatCloseBtn.addEventListener('click', () => {
+    chatPanel.classList.add('hidden');
+    state.currentRoom = null;
+  });
+
+  // ==================== SOCKET EVENTS ====================
+  socket.on('connect', () => {
+    console.log('🔌 connected to server');
+    const userId = getOrCreateUserId();
+    socket.emit('auth', { userId });
+  });
+
+  socket.on('invite:received', (payload) => {
+    showToast(`📩 ${payload.from.name} wants to chat!`);
+    showInviteModal(payload);
+  });
+
+  socket.on('chat:ready', ({ roomId, withUserId }) => {
+    // Someone else (or us) accepted the invite and the room is ready
+    if (state.currentRoom !== roomId) {
+      const otherName = withUserId ? `User ${withUserId.slice(0, 6)}` : 'Chat';
+      openChat(roomId, otherName);
+    }
+    socket.emit('chat:join', { roomId });
+  });
+
+  socket.on('chat:message', (msg) => {
+    if (msg.roomId !== state.currentRoom) return;
+    appendMessage(msg);
+  });
+
+  socket.on('disconnect', () => console.log('❌ disconnected'));
+
+  // ==================== INIT ====================
+  (function init() {
+    const userId = getOrCreateUserId();
+    state.me = buildMyProfile(userId);
+    updateUI();
+    console.log('👤 my userId:', userId);
+  })();
+  // ==================== PROFILE SETUP ====================
+const profileModal      = document.getElementById('profileModal');
+const profileModalTitle = document.getElementById('profileModalTitle');
+const profileModalSub   = document.getElementById('profileModalSub');
+const profileCancelBtn  = document.getElementById('profileCancelBtn');
+const profileSaveBtn    = document.getElementById('profileSaveBtn');
+const avatarPicker      = document.getElementById('avatarPicker');
+const profileNameInput  = document.getElementById('profileNameInput');
+const profileHandlesInput = document.getElementById('profileHandlesInput');
+const platformGrid      = document.getElementById('platformGrid');
+const profileChip       = document.getElementById('profileChip');
+const profileChipAvatar = document.getElementById('profileChipAvatar');
+const profileChipName   = document.getElementById('profileChipName');
+
+let selectedAvatar = '🙂';
+
+function loadProfile() {
+  const raw = localStorage.getItem('localchat_profile');
+  if (!raw) return null;
+  try { return JSON.parse(raw); } catch { return null; }
+}
+
+function saveProfile(profile) {
+  localStorage.setItem('localchat_profile', JSON.stringify(profile));
+  state.me = profile;
+}
+
+function updateProfileChip() {
+  if (state.me?.name && state.me.name !== 'You') {
+    profileChipAvatar.textContent = state.me.avatar || '🙂';
+    profileChipName.textContent   = state.me.name;
+  } else {
+    profileChipAvatar.textContent = '🙂';
+    profileChipName.textContent   = 'Set name';
+  }
+}
+
+function openProfileModal(isFirstTime = false) {
+  const p = state.me || {};
+  profileModalTitle.textContent = isFirstTime ? 'Welcome to LocalChat' : 'Edit your profile';
+  profileModalSub.textContent   = isFirstTime
+    ? 'Set up your profile so people nearby know who you are.'
+    : 'Update your name, avatar, and linked accounts.';
+  profileCancelBtn.style.display = isFirstTime ? 'none' : 'inline-flex';
+
+  selectedAvatar = p.avatar || '🙂';
+  profileNameInput.value = p.name && p.name !== 'You' ? p.name : '';
+  profileHandlesInput.value = Object.entries(p.socialHandles || {})
+    .map(([k, v]) => `${k}: ${v}`).join(', ');
+
+  // reset avatar highlight
+  document.querySelectorAll('.avatar-choice').forEach(b => {
+    b.classList.toggle('selected', b.dataset.avatar === selectedAvatar);
+  });
+
+  // reset platform checkboxes
+  const plat = new Set(p.platforms || []);
+  platformGrid.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+    cb.checked = plat.has(cb.value);
+  });
+
+  profileModal.classList.remove('hidden');
+  setTimeout(() => profileNameInput.focus(), 50);
+}
+
+function closeProfileModal() {
+  profileModal.classList.add('hidden');
+}
+
+// Avatar picker
+avatarPicker.addEventListener('click', (e) => {
+  const btn = e.target.closest('.avatar-choice');
+  if (!btn) return;
+  selectedAvatar = btn.dataset.avatar;
+  document.querySelectorAll('.avatar-choice').forEach(b =>
+    b.classList.toggle('selected', b === btn)
+  );
+});
+
+// Save button
+profileSaveBtn.addEventListener('click', async () => {
+  const name = profileNameInput.value.trim();
+  if (!name) {
+    profileNameInput.focus();
+    profileNameInput.style.borderColor = '#ff5c5c';
+    setTimeout(() => profileNameInput.style.borderColor = '', 1500);
+    return;
+  }
+
+  // parse handles: "snap: alex, tiktok: @alex"
+  const socialHandles = {};
+  profileHandlesInput.value.split(',').forEach(pair => {
+    const [k, v] = pair.split(':').map(s => s?.trim());
+    if (k && v) socialHandles[k.toLowerCase()] = v;
+  });
+
+  const platforms = [...platformGrid.querySelectorAll('input:checked')]
+    .map(cb => cb.value);
+
+  const userId = getOrCreateUserId();
+  const profile = {
+    userId,
+    name,
+    avatar: selectedAvatar,
+    platforms,
+    socialHandles
+  };
+
+  saveProfile(profile);
+  updateProfileChip();
+  closeProfileModal();
+  showToast(`✅ Profile saved — hi, ${name}!`);
+
+  // If location was already on, re-send to backend
+  if (state.locationOn) {
+    try {
+      await fetch(`${API_BASE}/api/user`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...profile,
+          lat: state.me.lat, lng: state.me.lng
+        })
+      });
+    } catch (_) {}
+  }
+});
+
+// Cancel button (edit mode only)
+profileCancelBtn.addEventListener('click', closeProfileModal);
+
+// Chip click -> edit
+profileChip.addEventListener('click', () => openProfileModal(false));
+
+// ==================== FIRST-LOAD TRIGGER ====================
+// Replace the old "buildMyProfile" flow: if no profile saved, force setup
+(function bootstrapProfile() {
+  const saved = loadProfile();
+  if (saved && saved.name && saved.name !== 'You') {
+    state.me = saved;
+    updateProfileChip();
+  } else {
+    // Build a blank profile object in memory but don't save yet
+    const userId = getOrCreateUserId();
+    state.me = { userId, name: '', avatar: '🙂', platforms: [], socialHandles: {} };
+    updateProfileChip();
+    openProfileModal(true);
+  }
+})();
+
+  // Expose for console debugging
+  window.__localchat = { state, socket };
+  </script>
+</body>
+</html>
